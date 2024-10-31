@@ -1,0 +1,23 @@
+{
+  "name": "votybecli",
+  "version": "1.0.0",
+  "main": "index.js",
+  "bin": {
+    "votybe": "./dist/cli.js"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "node build.js",
+    "start": "node dist/cli.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^22.8.5",
+    "esbuild": "^0.24.0",
+    "esbuild-plugin-copy": "^2.1.1",
+    "typescript": "^5.6.3"
+  }
+}
