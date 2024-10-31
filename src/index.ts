@@ -70,7 +70,7 @@ program
             const karmaTemplatePath = path.join(__dirname, "karma.config.template.js");
             const karmaConfigPath = path.join(process.cwd(), "karma.conf.js");
             fs.copyFileSync(karmaTemplatePath, karmaConfigPath);
-            console.log("Karma configuration file added.");
+            console.log("Karma configuration file added. ");
 
             // Update angular.json to include karmaConfig path
             const angularJsonPath = path.join(process.cwd(), "angular.json");
