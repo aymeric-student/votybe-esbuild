@@ -1,111 +1,101 @@
 #!/usr/bin/env node
-"use strict";
-import { Command } from "commander";
-import { execSync } from "child_process";
-import fs from "fs";
-import path from "path";
+'use strict';
 
-const program = new Command();
+import { Action } from './services/action.service';
+import { InquirerService } from './services/inquirer.service';
+import {
+    sonarQubeConfigQuestions,
+    useSonarQubeQuestion,
+    useVuetifyQuestion,
+} from './services/prompt.data';
+import { CommandExecutorService } from './services/commandExecutor.service';
+import { Logger } from './services/logger.service';
 
-program
-    .name("votybe")
-    .description("CLI to setup Angular")
-    .version("1.0.0");
+// Initialize the Action class to use Commander with custom methods
+const cli = new Action();
 
+cli.name('votybe')
+    .description(
+        'A CLI to set up Angular or Vue projects with optional configurations'
+    )
+    .version('1.0.0')
+    .command('setup:angular', 'Set up a new Angular project', async () => {
+        await setupAngularProject();
+    })
+    .command('setup:vue', 'Set up a new Vue project with Vite', async () => {
+        await setupVueProject();
+    })
+    .parse(process.argv);
 
-program
-    .command("install-angular")
-    .description("Installs Angular, sets up SonarQube, Karma, and Prettier configurations")
-    .action(() => {
-        console.log("Installing Angular...");
+async function setupAngularProject() {
+    Logger.info('Creating an Angular project...');
 
-        try {
-            // Install Angular CLI globally
-            execSync("npm install -g @angular/cli", { stdio: "inherit" });
-            execSync("ng new my-angular-app --skip-install", { stdio: "inherit" });
-            console.log("Angular setup complete.");
+    CommandExecutorService.runCommand('npm install @angular/cli');
+    CommandExecutorService.runCommand('ng new my-angular-app --skip-install');
+    Logger.success('Angular project created.');
 
-            // Change directory to Angular app
-            process.chdir("my-angular-app");
+    process.chdir('my-angular-app');
 
-            console.log("Setting up SonarQube...");
+    const { useSonarQube } =
+        await InquirerService.askQuestion(useSonarQubeQuestion);
+    if (useSonarQube) {
+        const sonarConfig = await InquirerService.askQuestion(
+            sonarQubeConfigQuestions
+        );
+        setupSonarQube(sonarConfig);
+    }
 
-            // SonarQube configuration as an object
-            const sonarQubeConfig = {
-                "sonar.projectKey": "my-angular-app",
-                "sonar.organization": "my-org",
-                "sonar.host.url": "https://sonarcloud.io",
-                "sonar.login": "my-token"
-            };
+    setupPrettier();
+    setupKarma();
+}
 
-            // Write SonarQube configuration to file
-            const sonarConfigContent = Object.entries(sonarQubeConfig)
-                .map(([key, value]) => `${key}=${value}`)
-                .join('\n');
-            fs.writeFileSync("sonar-project.properties", sonarConfigContent);
-            console.log("SonarQube configuration file added.");
+async function setupVueProject() {
+    Logger.info('Creating a Vue.js project with Vite...');
 
-            // Add sonar-scanner as a devDependency and set up sonar:scan script
-            const packageJsonPath = path.join(process.cwd(), "package.json");
-            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+    CommandExecutorService.runCommand(
+        'npm create vite@latest my-vue-app -- --template vue-ts'
+    );
+    Logger.success('Vue.js project created with Vite.');
 
-            // Get the latest version of sonar-scanner from npm registry
-            const latestVersion = execSync("npm show sonar-scanner version").toString().trim();
+    process.chdir('my-vue-app');
 
-            // Add sonar-scanner to devDependencies with the latest version
-            packageJson.devDependencies = packageJson.devDependencies || {};
-            packageJson.devDependencies["sonar-scanner"] = `^${latestVersion}`;
+    const { useVuetify } =
+        await InquirerService.askQuestion(useVuetifyQuestion);
+    if (useVuetify) {
+        installVuetify();
+    }
 
-            // Add sonar:scan script using sonar.settings=sonar-project.properties
-            packageJson.scripts["sonar:scan"] = "sonar-scanner -Dsonar.settings=sonar-project.properties";
+    setupPrettier();
+}
 
-            // Write the modified package.json back to disk
-            fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-            console.log("SonarQube Scanner added to devDependencies with version ${latestVersion}");
+function setupSonarQube(config: {
+    projectKey: string;
+    organization: string;
+    loginToken: string;
+}) {
+    Logger.info('Setting up SonarQube...');
+    const sonarQubeConfig = {
+        projectKey: config.projectKey,
+        organization: config.organization,
+        hostUrl: 'http://localhost:9000',
+        loginToken: config.loginToken,
+    };
+    // Further configuration if needed
+}
 
-            // Setting up Karma configuration
-            console.log("Setting up Karma configuration...");
+function installVuetify() {
+    Logger.info('Installing Vuetify...');
+    CommandExecutorService.runCommand('npm install vuetify');
+    Logger.success('Vuetify installed');
+}
 
-            // Copy karma.config.template.js to my-angular-app/karma.conf.js
-            const karmaTemplatePath = path.join(__dirname, "karma.config.template.js");
-            const karmaConfigPath = path.join(process.cwd(), "karma.conf.js");
-            fs.copyFileSync(karmaTemplatePath, karmaConfigPath);
-            console.log("Karma configuration file added. ");
+function setupPrettier() {
+    Logger.info('Setting up Prettier...');
+    CommandExecutorService.runCommand('npm install --save-dev prettier');
+    Logger.success('Prettier configured.');
+}
 
-            // Update angular.json to include karmaConfig path
-            const angularJsonPath = path.join(process.cwd(), "angular.json");
-            const angularJson = JSON.parse(fs.readFileSync(angularJsonPath, "utf8"));
-            angularJson.projects["my-angular-app"].architect.test.options.karmaConfig = "karma.conf.js";
-            fs.writeFileSync(angularJsonPath, JSON.stringify(angularJson, null, 2));
-            console.log("Karma configuration path added to angular.json");
-
-            // Setting up Prettier
-            console.log("Setting up Prettier...");
-
-            // Install Prettier
-            execSync("npm install --save-dev prettier", { stdio: "inherit" });
-
-            // Create .prettierrc configuration file
-            const prettierConfig = {
-                "semi": true,
-                "singleQuote": true,
-                "printWidth": 80,
-                "tabWidth": 4,
-                "trailingComma": "es5",
-                "bracketSpacing": true,
-                "arrowParens": "always"
-            };
-            fs.writeFileSync(".prettierrc", JSON.stringify(prettierConfig, null, 2));
-            console.log("Prettier configuration file (.prettierrc) added.");
-
-            // Update package.json to include Prettier format script
-            packageJson.scripts["format"] = "prettier --write \"src/**/*.{ts,js,json,css,scss,html}\"";
-            fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-            console.log("Prettier format script added to package.json");
-
-        } catch (error) {
-            console.error("Error during installation and setup:", error);
-        }
-    });
-
-program.parse(process.argv);
+function setupKarma() {
+    Logger.info('Setting up Karma for Angular...');
+    Logger.success('Karma configuration added.');
+}
